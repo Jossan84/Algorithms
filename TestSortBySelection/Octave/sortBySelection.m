@@ -8,4 +8,4 @@ function [sortedArray] = sortBySelection(array)
     array(minIndex) = [];
   end
     
-endfunction
+end
