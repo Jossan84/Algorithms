@@ -1,0 +1,2 @@
+https://www.journaldev.com/35238/hash-table-in-c-plus-plus
+https://www.tutorialspoint.com/data_structures_algorithms/hash_data_structure.htm
