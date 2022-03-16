@@ -5,6 +5,8 @@
 #include<vector>
 #include<list>
 #include<map>
+#include<ctime>
+#include<cstdlib>
 
 using namespace std;
 
@@ -293,11 +295,346 @@ list<char> Graph::vertices()
   return nodes;
 }
 
-int main(){
-    
-	Graph g(5);
-	g.show();
- 
-    return 0;  
+//==============================================================================
+// NodeInfo Definitions
+// Used to store information about nodes, paths and min dists in priority queue
+//==============================================================================
+struct strNodeInfo
+{
+  char nodeName;	// Node name
+  int minDist;		// Shortest path found to nodeName
+  char through;		// Node that precede nodeName in the shortest path
+};
+typedef struct strNodeInfo NodeInfo;
+
+// Compare NodeInfo by nodeName
+bool compareNodeName(NodeInfo& n1, NodeInfo& n2)
+{
+  if (n1.nodeName < n2.nodeName) return true;
+  return false;
 }
 
+// Compare NodeInfo by minDist
+bool compareMinDist(NodeInfo& n1, NodeInfo& n2)
+{
+  if (n1.minDist < n2.minDist) return true;
+  return false;
+}
+
+// Return true if two NodeInfo have the same nodeName and false otherwise
+bool operator== (NodeInfo& n1, NodeInfo& n2)
+{
+  if (n1.nodeName == n2.nodeName) return true;
+  return false;
+}
+
+//==============================================================================
+// PriorityQueue Class
+// Stores known information about node names, min distances and paths
+// Ordered by min distances
+//==============================================================================
+class PriorityQueue {
+  public:
+    PriorityQueue();
+    void chgPriority(NodeInfo n);
+    void minPriority();
+    bool contains(NodeInfo n);
+    bool isBetter(NodeInfo n);
+    void insert(NodeInfo n);
+    NodeInfo top();
+    int size();
+    
+  private:
+    list<NodeInfo> pq;		// List of known nodes/paths ordered by minDist
+};
+
+// Constructor of PriorityQueue Class
+// Creates an empty list of nodes
+PriorityQueue::PriorityQueue()
+{
+  pq.clear();
+}
+
+// Definition of chgPriority method
+// Description: Change information ('minDist' and 'through') of a node named 'n' in priority queue
+void PriorityQueue::chgPriority(NodeInfo n)
+{
+  for(list<NodeInfo>::iterator i=pq.begin(); i!=pq.end(); ++i)
+    if ((*i) == n)
+    {
+      (*i).minDist = n.minDist;
+      (*i).through = n.through;
+    }
+  pq.sort(compareMinDist);
+}
+
+// Definition of minPriority method
+// Description: Remove the node with lower minDist from priority queue 
+void PriorityQueue::minPriority()
+{
+  if (! pq.empty())
+  {
+    pq.pop_front();
+  }
+}
+
+// Definition of contains method
+// Description: Returne true if there is a node named 'n' in priority queue and false otherwise 
+bool PriorityQueue::contains(NodeInfo n)
+{
+  for(list<NodeInfo>::iterator i=pq.begin(); i!=pq.end(); ++i)
+    if ((*i).nodeName == n.nodeName)
+      return true;
+  return false;
+}
+
+// Definition of isBetter method
+// Description: Return true if node 'n' has a lower minDist than the node with the same name in the priority queue and false otherwise
+bool PriorityQueue::isBetter(NodeInfo n)
+{
+  for(list<NodeInfo>::iterator i=pq.begin(); i!=pq.end(); ++i)
+    if ((*i).nodeName == n.nodeName)
+      if ((*i).minDist > n.minDist)
+	return true;
+  return false;
+}
+// Definition of insert method
+// Description: Insert node 'n' into priority queue
+void PriorityQueue::insert(NodeInfo n)
+{
+  pq.push_back(n);
+  pq.sort(compareMinDist);
+}
+
+// Definition of top method
+// Description: Return the node with lower minDist in priority queue (without removing it from the queue))
+NodeInfo PriorityQueue::top()
+{
+  NodeInfo n = {' ',0};
+  if (! pq.empty())
+  {
+    list<NodeInfo>::iterator i=pq.begin();
+    n.nodeName = (*i).nodeName;
+    n.minDist = (*i).minDist;
+    n.through = (*i).through;
+  }
+  return n;
+}
+
+// Definition of size method
+// Description: Return the number of elements in the priority queue
+int PriorityQueue::size()
+{
+  return pq.size();
+}
+
+// ShortestPath Class
+// Description: Implements Dijkstra's Algorithm to find shortest paths between two nodes
+class ShortestPath
+{
+  public:
+    ShortestPath();
+    ShortestPath(Graph g);
+    list<char> path(char u, char w);
+    int pathSize(char u, char w);
+  
+  private:
+    Graph graph;		// Graph used by Diajkstra's Algorithm
+};
+
+// Constructor of ShortestPath Class (do nothing)
+ShortestPath::ShortestPath()
+{
+}
+
+// Constructor of ShortestPath Class that stores Graph used by Dijkstra's Algorithm 
+ShortestPath::ShortestPath(Graph g)
+{
+  graph = g;
+}
+
+// Definition of path method
+// Description: Return a list<char> containing the list of nodes in the shortest path between 'u' and 'w'
+list<char> ShortestPath::path(char u, char w)
+{
+  // Initialize candidates list with all nodes
+  list<char> candidates = graph.vertices(), desiredPath;
+  list<NodeInfo> minPaths;
+  PriorityQueue p;
+  NodeInfo lastSelected, n;
+     
+  // Calculate shortest path from 'u' to 'w' (Dijkstra's Algorithm)
+  candidates.remove(u);			// Remove 'u' from candidates list
+  lastSelected.nodeName = u;		// Set 'u' as lastSelected
+  lastSelected.minDist = 0;
+  lastSelected.through = u;
+  minPaths.push_back(lastSelected);	// Add 'u' to minPath list
+  while ((!candidates.empty()) && (lastSelected.nodeName !=w))
+  {
+    // For each node in candidate list calculate the cost to reach that candidate through lastSelected 
+    for(list<char>::iterator i=candidates.begin(); i != candidates.end(); ++i)
+    {
+      n.nodeName=*i;
+      n.minDist=lastSelected.minDist+graph.get_edge_value(lastSelected.nodeName,*i);
+      n.through=lastSelected.nodeName;
+      if (!p.contains(n))	// Add candidate to priority queue if doesn't exist 
+	p.insert(n);
+      else
+	if (p.isBetter(n))	// Update candidate minDist in priority queue if a better path was found
+	  p.chgPriority(n);
+    }
+    lastSelected = p.top();			// Select the candidate with minDist from priority queue
+    p.minPriority();				// Remove it from the priority queue
+    minPaths.push_back(lastSelected);		// Add the candidate with min distance to minPath list
+    candidates.remove(lastSelected.nodeName);	// Remove it from candidates list
+  }
+  
+  // Go backward from 'w' to 'u' adding nodes in that path to desiredPath list
+  lastSelected=minPaths.back();
+  desiredPath.push_front(lastSelected.nodeName);
+  while(lastSelected.nodeName!=u)
+  {
+    for(list<NodeInfo>::iterator i=minPaths.begin(); i != minPaths.end(); ++i)
+      if ((*i).nodeName==lastSelected.through)
+      {
+	lastSelected=(*i);
+	desiredPath.push_front(lastSelected.nodeName);
+      }
+  }
+  return desiredPath;
+}
+
+// Definition of pathSize method
+// Description: Return the size of the shortest path between 'u' and 'w'
+int ShortestPath::pathSize(char u, char w)
+{
+  int pathCost=0;
+  list<char> sp;
+  char current,next;
+  
+  // Calculate the shortest path from 'u' to 'w' and then sum up edge weights in this path
+  sp = path(u,w);
+  current=sp.front();
+  sp.pop_front();
+  for(list<char>::iterator i=sp.begin(); i!=sp.end(); ++i)
+  {
+    next = (*i);
+    pathCost += graph.get_edge_value(current,next);
+    current = next;
+  }
+  return pathCost; 
+}
+
+
+// Monte Carlo Class
+// Description: Used to generate random graphs and run simulations
+class MonteCarlo
+{
+  public:
+    MonteCarlo();
+    Graph randomGraph(int vert, double density, int minDistEdge, int maxDistEdge);
+    void run(Graph g);
+  
+  private:
+};
+
+// Constructor of MonteCarlo Class
+// Description: Initializes the seed of random number generator
+MonteCarlo::MonteCarlo()
+{
+  srand(time(NULL));
+}
+// Definition of Random Graph method
+// Description: Return a random Graph generated with number of nodes, density and edge weight range informed
+Graph MonteCarlo::randomGraph(int numVert, double density, int minDistEdge, int maxDistEdge)
+{
+  int randDistEdge;
+  char srcVert, dstVert;
+  
+  Graph g(numVert);
+
+  for (int i=0; i<g.V(); ++i)
+    for (int j=i+1; j<g.V(); ++j)
+    {
+      double p = ((static_cast<double>(rand())) / RAND_MAX);	// Generate random probability
+      if (p < density)	// If random probability is less than density, edge (i,j) will be set
+      {
+	randDistEdge = rand() % (maxDistEdge - minDistEdge) + minDistEdge; // Generate random edge weight
+
+    if (i < 26)
+        srcVert = static_cast<char>('A' + i);
+    else
+        srcVert = static_cast<char>('a' + i-26);	
+
+    if (j < 26)
+        dstVert = static_cast<char>('A' + j);
+    else
+        dstVert = static_cast<char>('a' + j-26);
+
+	g.set_edge_value(srcVert,dstVert,randDistEdge);
+      }
+    }
+  
+  return g;
+}
+
+// Definition of run method
+// Description: Run a simulation finding the shortest paths in a given graph 
+void MonteCarlo::run(Graph g)
+{
+  static int turn=0;
+  
+  cout << endl << "=== RUNNING SIMULATION No. " << ++turn << " ===" << endl;
+  
+  // Print out graph information
+  double d = static_cast<double>(g.E())/((static_cast<double>(g.V())*static_cast<double>(g.V())-1)/2)*100;	// Calculate real density reached
+  cout << "Vertices: " << g.V() << endl;
+  cout << "Edges: " << g.E() << " (density: " << d << "%)" << endl;
+  cout << "Graph: " << endl;
+  g.show();
+
+  // Print out shortest path information
+  list<char> v = g.vertices();
+  cout << endl << "Vertices: " << v << endl; 
+  int reachVert=0, sumPathSize=0, avgPathSize=0;
+  ShortestPath sp(g);
+  for (list<char>::iterator i=++v.begin(); i != v.end(); ++i) 
+  {
+    char src = v.front();
+    char dst = (*i);
+    list<char> p = sp.path(src,dst);
+    int ps = sp.pathSize(src,dst);
+    if (ps != INF)
+      cout << "ShortestPath (" << src << " to " << dst << "): " << ps << " -> " << p << endl;
+    else
+      cout << "ShortestPath (" << src << " to " << dst << "): " << "** UNREACHABLE **" << endl;      
+    if (ps!=INF)
+    {
+      reachVert++;		// Sum up reached nodes 
+      sumPathSize += ps;	// Sum up shortest paths found
+    }
+  }  
+  
+  // Calculate average shortest path and print it out
+  if (reachVert!=0)
+    avgPathSize = sumPathSize / reachVert;	
+  else
+    avgPathSize = 0;
+  cout << endl << "AVG ShortestPath Size (reachVert: " << reachVert << " - sumPathSize: " << sumPathSize << "): " << avgPathSize << endl;
+}
+
+int main()
+{
+  MonteCarlo simulation;
+  Graph g;
+  
+  // Creates a graph with 50 nodes / density 20% and then run simulation
+  g = simulation.randomGraph(50,0.2,1,10);
+  simulation.run(g);
+
+  // Creates a graph with 50 nodes / density 40% and then run simulation
+  g = simulation.randomGraph(50,0.4,1,10);
+  simulation.run(g);
+  
+  return 0;  
+}
